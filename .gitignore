@@ -4,3 +4,4 @@ gcp/data/*
 .idea/*
 gcp/__pycache__/*
 venv/*
+*.swp
