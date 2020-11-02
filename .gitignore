@@ -1,1 +1,6 @@
 *.json
+img/*
+gcp/data/*
+.idea/*
+gcp/__pycache__/*
+venv/*
