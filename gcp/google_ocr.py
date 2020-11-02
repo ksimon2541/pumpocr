@@ -1,5 +1,7 @@
+# This script was used as a prototype to validate if google cloud vision API was a good fit for what I was trying to accomplish.
+
 judgements = ['PERFECT', 'GREAT', 'GOOD', 'BAD', 'MISS']
-def detect_text(path):
+def detect_text(path: object) -> object:
     """Detects text in the file."""
     from google.cloud import vision
     import io
