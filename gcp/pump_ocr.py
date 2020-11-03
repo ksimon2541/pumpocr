@@ -5,7 +5,6 @@ playstyles = ['SINGLE', 'DOUBLE']
 judge_mods = ['HJ', 'VJ']
 ranks = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D', 'F']
 
-
 # Search all words and largest numerical value should always be TOTAL SCORE.
 def find_total_score(document):
     largest = 0
@@ -72,11 +71,29 @@ def find_difficulty(document):
     playstyle_bounds = find_playstyle_bounds(document)
     if playstyle_bounds == None:
         return 'Not Found'
-    expected_difficulty_bounds = [playstyle_bounds.vertices[0].x-50, playstyle_bounds.vertices[0].y+20,
-                            playstyle_bounds.vertices[1].x+50, playstyle_bounds.vertices[0].y+20]
-    difficulty = text_within(document, expected_difficulty_bounds[0], expected_difficulty_bounds[1], expected_difficulty_bounds[2],
-                             expected_difficulty_bounds[3])
-    return difficulty
+
+    closest = 'Not Found'
+    closest_dist = 100000
+    for page in document.pages:
+        for block in page.blocks:
+            for paragraph in block.paragraphs:
+                for word in paragraph.words:
+                    assembled = assemble_word(word)
+
+                    # Ensure what we're considering is a number
+                    if try_parse_number(assembled) == None:
+                        continue
+
+                    num = int(assembled)
+                    if num > 28:
+                        continue
+
+                    (x_dist, y_dist) = dist_between_top_left(playstyle_bounds, word.bounding_box)
+                    if y_dist < closest_dist:
+                        closest_dist = y_dist
+                        closest = assembled
+
+    return closest
 
 
 # Rank will always be one of the entries in ranks list, so just check against those.
@@ -96,36 +113,41 @@ def find_judgements(document):
     judgement_pairs = []
     for judgement in judgements:
         judgement_bounds = find_word_location(document, judgement)
+        judgement_count = 'Not Found'
 
         # todo: use different method to locate judgements that is more consistent
-        if judgement_bounds == None:
-            judgement_pairs.append((judgement, 'Not Found'))
-        else:
-            judgement_count = find_judgement_count(document, judgement_bounds, judgement)
-            judgement_pairs.append((judgement, judgement_count))
+        if judgement_bounds != None:
+            judgement_count = find_judgement_count(document, judgement_bounds)
+
+        judgement_pairs.append((judgement, judgement_count))
     return judgement_pairs
 
 
 # Judgement counts will always have similar vertical positions as the text, just off left (and off right for P2 later).
-def find_judgement_count(document, judgement_bounds, judgement):
-    judgement_vertical_bounds = (judgement_bounds.vertices[0].y, judgement_bounds.vertices[2].y)
-    closest_word = ''
-    min_vertical_diff = 100000
+def find_judgement_count(document, judgement_bounds):
+    closest_word = 'Not Found'
+    closest_x_dist = 100000
+    closest_y_dist = 100000
     for page in document.pages:
         for block in page.blocks:
             for paragraph in block.paragraphs:
                 for word in paragraph.words:
+                    assembled = assemble_word(word)
 
-                    # Don't check judgement against itself
-                    if assemble_word(word) == judgement:
+                    # Ensure what we're considering is a number
+                    if try_parse_number(assembled) == None:
                         continue
 
-                    word_vertical_bounds = (word.bounding_box.vertices[0].y, word.bounding_box.vertices[2].y)
-                    vertical_diff = abs(judgement_vertical_bounds[0] - word_vertical_bounds[0]) + abs(judgement_vertical_bounds[1] - word_vertical_bounds[1])
+                    (x_dist, y_dist) = dist_between_top_left(judgement_bounds, word.bounding_box)
 
-                    if vertical_diff < min_vertical_diff:
-                        closest_word = assemble_word(word)
-                        min_vertical_diff = vertical_diff
+                    # Skip anything not in the same row
+                    if y_dist > 20:
+                        continue
+
+                    if x_dist < closest_x_dist:
+                        closest_x_dist = x_dist
+                        closest_word = assembled
+
     return closest_word
 
 
@@ -134,23 +156,33 @@ def find_max_combo(document):
     max_combo_bounds = find_word_location(document, 'MAX')
     if max_combo_bounds == None:
         return 'Not Found'
-    max_combo_vertical_bounds = (max_combo_bounds.vertices[0].y, max_combo_bounds.vertices[2].y)
-    closest_word = ''
-    min_vertical_diff = 100000
+
+    closest_word = 'Not Found'
+    closest_dist = 100000
     for page in document.pages:
         for block in page.blocks:
             for paragraph in block.paragraphs:
                 for word in paragraph.words:
                     assembled = assemble_word(word)
 
-                    # Don't check judgement against itself
-                    if assembled == 'MAX' or assembled == 'COMBO':
+                    # Ensure we're dealing with a number
+                    if try_parse_number(assembled) == None:
                         continue
 
-                    word_vertical_bounds = (word.bounding_box.vertices[0].y, word.bounding_box.vertices[2].y)
-                    vertical_diff = abs(max_combo_vertical_bounds[0] - word_vertical_bounds[0]) + abs(max_combo_vertical_bounds[1] - word_vertical_bounds[1])
-
-                    if vertical_diff < min_vertical_diff:
+                    (x_dist, y_dist) = dist_between_top_left(max_combo_bounds, word.bounding_box)
+                    if y_dist < closest_dist:
+                        closest_dist = y_dist
                         closest_word = assemble_word(word)
-                        min_vertical_diff = vertical_diff
     return closest_word
+
+def try_parse_number(str):
+    try:
+        num = int(str)
+        return num
+    except ValueError:
+        return None
+
+def dist_between_top_left(poly1, poly2):
+    x_dist = abs(poly1.vertices[0].x - poly2.vertices[0].x)
+    y_dist = abs(poly1.vertices[0].y - poly2.vertices[0].y)
+    return (x_dist, y_dist)
